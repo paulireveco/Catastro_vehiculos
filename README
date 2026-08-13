@@ -1,0 +1,170 @@
+# Aplicación Streamlit: Catastro de Vehículos 2027
+
+Este proyecto contiene una aplicación en **Streamlit** para visualizar, filtrar, analizar y generar reportes del catastro de vehículos institucional.
+
+La aplicación fue construida considerando el archivo transformado `catastro_vehiculos_transformado.xlsx` y el plan de trabajo `Plan_de_trabajo_catastro_vehiculos.md`.
+
+## 1. Contenido del proyecto
+
+```text
+catastro_streamlit/
+├── app.py
+├── requirements.txt
+├── README.md
+├── REQUERIMIENTO_FUNCIONAL.md
+└── catastro_vehiculos_transformado.xlsx
+```
+
+## 2. Qué permite hacer la aplicación
+
+- Cargar el archivo Excel transformado del catastro.
+- Aplicar filtros por Servicio, tipo de vehículo, estado, priorización y criterios de cumplimiento.
+- Visualizar indicadores principales.
+- Generar gráficos requeridos en el plan de trabajo.
+- Descargar la base filtrada en Excel.
+- Generar y descargar una minuta automática en formato TXT.
+
+## 3. Requisitos previos
+
+Debe tener instalado:
+
+- Python 3.10 o superior.
+- Visual Studio Code.
+- Extensión de Python en Visual Studio Code.
+
+## 4. Instalación paso a paso en Visual Studio Code
+
+### Paso 1: Crear carpeta carpeta del proyecto
+
+Cree una carpeta, por ejemplo:
+
+```powershell
+C:\Vehiculos2027\catastro_streamlit
+```
+
+Copie dentro de esa carpeta los siguientes archivos:
+
+- `app.py`
+- `requirements.txt`
+- `README.md`
+- `REQUERIMIENTO_FUNCIONAL.md`
+- `catastro_vehiculos_transformado.xlsx`
+
+### Paso 2: Abrir la carpeta en Visual Studio Code
+
+En Visual Studio Code:
+
+1. Ir a **Archivo**.
+2. Seleccionar **Abrir carpeta**.
+3. Elegir la carpeta del proyecto.
+
+### Paso 3: Crear entorno virtual
+
+En la terminal de Visual Studio Code ejecutar:
+
+```powershell
+python -m venv .venv
+```
+
+### Paso 4: Activar entorno virtual
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+Si PowerShell bloquea la activación, ejecutar una vez:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+```
+
+Luego volver a activar el entorno virtual.
+
+### Paso 5: Instalar librerías
+
+```powershell
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+### Paso 6: Ejecutar la aplicación
+
+```powershell
+streamlit run app.py
+```
+
+La aplicación se abrirá en el navegador. Normalmente se visualizará en:
+
+```text
+http://localhost:8501
+```
+
+## 5. Uso de la aplicación
+
+1. Al abrir la aplicación se cargará automáticamente el archivo `catastro_vehiculos_transformado.xlsx`, siempre que esté en la misma carpeta que `app.py`.
+2. También puede cargar otro archivo Excel desde la barra lateral.
+3. Use los filtros de la barra lateral para seleccionar Servicio, Tipo de vehículo, Estado, Priorización o criterios de cumplimiento.
+4. Revise los indicadores y gráficos generados.
+5. Descargue el Excel filtrado o la minuta automática desde la sección **Descargas**.
+
+## 6. Campos principales usados
+
+La aplicación utiliza principalmente los siguientes campos:
+
+- `Servicio`
+- `I.R.N.V.M.`
+- `Tipo vehículo`
+- `Año Vehículo`
+- `Kilometraje acumulado`
+- `Gasto en mantención acumulada`
+- `Estado`
+- `Priorización`
+- `Criterio antigüedad >= 8 años`
+- `Criterio priorización alta`
+- `Criterio gasto mantención > $5.000.000`
+- `Criterio kilometraje > 100.000`
+- `Observaciones calidad de datos`
+
+## 7. Criterio de vehículos críticos
+
+La aplicación calcula una columna auxiliar llamada:
+
+```text
+Cantidad criterios cumplidos
+```
+
+Esta columna suma los cuatro criterios principales. Luego identifica como vehículos destacados aquellos que cumplen **3 o más criterios**.
+
+## 8. Archivos de salida desde la aplicación
+
+La aplicación permite descargar:
+
+- `reporte_catastro_filtrado.xlsx`: base filtrada según los criterios seleccionados.
+- `minuta_catastro_vehiculos.txt`: minuta automática con resumen e identificación de principales hallazgos.
+
+## 9. Solución de problemas frecuentes
+
+### Streamlit no se reconoce como comando
+
+Ejecutar:
+
+```powershell
+python -m streamlit run app.py
+```
+
+### No se encuentra el archivo Excel
+
+Verifique que `catastro_vehiculos_transformado.xlsx` esté en la misma carpeta que `app.py`, o cárguelo directamente desde la barra lateral de la aplicación.
+
+### No se instala una librería
+
+Ejecutar:
+
+```powershell
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+## 10. Nota
+
+Esta versión está preparada como base funcional para uso local en Visual Studio Code. Si se requiere compartir con otros usuarios, se puede publicar en una plataforma compatible con Streamlit o integrarla mediante enlace en SharePoint.
