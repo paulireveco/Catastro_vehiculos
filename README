@@ -1,0 +1,158 @@
+# Aplicación Streamlit: Catastro de Vehículos 2027
+
+Esta aplicación permite revisar el archivo `catastro_vehiculos.xlsx`, aplicar filtros, visualizar indicadores y generar una minuta automática para apoyar el análisis de renovación o priorización de vehículos.
+
+## 1. Archivos incluidos
+
+- `app.py`: aplicación principal en Streamlit.
+- `requirements.txt`: librerías necesarias para ejecutar la aplicación.
+- `README.md`: instrucciones de instalación y uso.
+
+> Importante: deje el archivo `catastro_vehiculos.xlsx` en la misma carpeta de la aplicación o cárguelo desde el panel lateral de Streamlit.
+
+## 2. Requisitos previos
+
+- Python 3.10 o superior.
+- Visual Studio Code.
+- Extensión de Python instalada en VS Code.
+
+## 3. Instalación paso a paso en Visual Studio Code
+
+### Paso 1: Crear carpeta de trabajo
+
+Cree una carpeta, por ejemplo:
+
+```bash
+C:\Vehiculos2027
+```
+
+Copie dentro de esa carpeta:
+
+- `app.py`
+- `requirements.txt`
+- `README.md`
+- `catastro_vehiculos.xlsx`
+
+### Paso 2: Abrir la carpeta en VS Code
+
+Abra Visual Studio Code y seleccione:
+
+```text
+Archivo > Abrir carpeta > C:\Vehiculos2027
+```
+
+### Paso 3: Crear entorno virtual
+
+En la terminal de VS Code ejecute:
+
+```bash
+python -m venv .venv
+```
+
+### Paso 4: Activar entorno virtual en Windows PowerShell
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+Si PowerShell bloquea la activación, ejecute una sola vez:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+```
+
+Luego vuelva a activar:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+### Paso 5: Instalar dependencias
+
+```bash
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+```
+
+### Paso 6: Ejecutar aplicación
+
+```bash
+streamlit run app.py
+```
+
+Se abrirá una ventana del navegador con la aplicación.
+
+## 4. Uso de la aplicación
+
+La aplicación permite:
+
+1. Cargar el archivo Excel del catastro.
+2. Filtrar por:
+   - Servicio.
+   - Priorización.
+   - Estado.
+   - Tipo de vehículo.
+   - Motivo FP 2027.
+   - Año del vehículo.
+   - Kilometraje mínimo.
+   - Gasto mínimo de mantención.
+   - Texto libre, por ejemplo: `DPF`, `frenos`, `embrague`, una patente o una región.
+3. Revisar indicadores principales:
+   - Total de vehículos filtrados.
+   - Cantidad con prioridad Alta.
+   - Vehículos con 8 años o más al 2027.
+   - Vehículos con 200.000 km o más.
+   - Vehículos con gasto de mantención igual o superior a $10.000.000.
+4. Descargar:
+   - Base filtrada en Excel.
+   - Minuta en formato TXT.
+   - Minuta en formato Word.
+
+## 5. Criterios de alerta referencial
+
+La aplicación calcula un `Puntaje_referencia` sumando 1 punto por cada condición cumplida:
+
+- Priorización Alta.
+- Antigüedad de 8 años o más al 2027.
+- Kilometraje igual o superior a 200.000 km.
+- Gasto de mantención igual o superior a $10.000.000.
+
+Este puntaje sirve solo como apoyo para revisión interna. No reemplaza la validación técnica, presupuestaria ni administrativa correspondiente.
+
+## 6. Cómo obtener una minuta desde un filtro
+
+1. Abra la aplicación.
+2. Seleccione uno o más filtros en el panel lateral.
+3. Revise que la tabla muestre los vehículos esperados.
+4. Baje hasta la sección **Minuta automática según filtros**.
+5. Revise el texto generado.
+6. Descargue la minuta en TXT o Word.
+
+## 7. Errores frecuentes
+
+### Streamlit no se reconoce como comando
+
+Ejecute:
+
+```bash
+python -m streamlit run app.py
+```
+
+### No se encuentra el archivo Excel
+
+Verifique que `catastro_vehiculos.xlsx` esté en la misma carpeta que `app.py` o cárguelo manualmente desde el panel lateral.
+
+### Error al leer el Excel
+
+Revise que el archivo no esté abierto en Excel y que tenga extensión `.xlsx`.
+
+## 8. Compartir la aplicación con otros usuarios
+
+Opciones posibles:
+
+- Ejecutarla en un computador institucional y compartir la URL local solo si la red lo permite.
+- Publicarla en Streamlit Community Cloud, si las políticas institucionales lo autorizan.
+- Desplegarla en Azure App Service o un servidor interno.
+- Integrarla como enlace desde SharePoint, cuando la aplicación esté publicada en una URL accesible para los usuarios.
+
+Para información sensible o institucional, se recomienda validar previamente con informática, seguridad de la información y jefatura correspondiente.
