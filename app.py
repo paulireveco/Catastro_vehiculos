@@ -118,37 +118,67 @@ def generar_minuta(df, filtros_aplicados):
         lineas.append(f"- Kilometraje promedio: {km_promedio:,.0f} km".replace(",", "."))
     else:
         lineas.append("- Kilometraje promedio: No disponible")
-    lineas.append("")
-    lineas.append("3. Vehículos que cumplen 3 o más criterios")
-
-    cols_base = [c for c in ["Servicio", "I.R.N.V.M.", "Tipo vehículo", "Año Vehículo", "Priorización", "Cantidad criterios cumplidos"] if c in df.columns]
-    candidatos = df[df["Cantidad criterios cumplidos"] >= 3].copy() if "Cantidad criterios cumplidos" in df.columns else pd.DataFrame()
-    if candidatos.empty:
-        lineas.append("- No se identifican vehículos que cumplan 3 o más criterios en el universo filtrado.")
-    else:
-        for _, row in candidatos[cols_base].head(50).iterrows():
-            detalle = " | ".join([f"{c}: {row.get(c, '')}" for c in cols_base])
-            lineas.append(f"- {detalle}")
-        if len(candidatos) > 50:
-            lineas.append(f"- Se omiten {len(candidatos) - 50} registros adicionales por extensión de la minuta.")
 
     lineas.append("")
-    lineas.append("4. Observaciones")
-    if "Observaciones calidad de datos" in df.columns:
-        obs = df["Observaciones calidad de datos"].dropna().astype(str)
-        obs = obs[~obs.str.lower().eq("sin observaciones")]
-        if obs.empty:
-            lineas.append("- No se observan alertas relevantes de calidad de datos en los registros filtrados.")
+    lineas.append("3. Conclusión")
+
+    if "Cantidad criterios cumplidos" in df.columns and total > 0:
+
+        max_criterios = int(df["Cantidad criterios cumplidos"].max())
+        min_criterios = int(df["Cantidad criterios cumplidos"].min())
+
+        servicio = "los servicios filtrados"
+        if "Servicio" in df.columns:
+            servicios_unicos = df["Servicio"].dropna().astype(str).unique()
+            if len(servicios_unicos) == 1:
+                servicio = servicios_unicos[0]
+
+        if min_criterios == 4 and max_criterios == 4:
+
+            lineas.append(
+                f"En atención al presente informe técnico, mediante el cual se analiza "
+                f"la solicitud de reemplazo de vehículo(s) perteneciente(s) a {servicio}, "
+                f"se concluye que el universo filtrado cumple con los cuatro criterios de evaluación "
+                f"definidos para el proceso de renovación vehicular. En consecuencia, se estima "
+                f"necesario considerar su reemplazo, con el propósito de mantener la operatividad del servicio "
+                f"en adecuadas condiciones de seguridad, confiabilidad y confort."
+            )
+
+        elif max_criterios >= 3:
+
+            lineas.append(
+                f"En atención al presente informe técnico, mediante el cual se analiza "
+                f"la solicitud de reemplazo de vehículo(s) perteneciente(s) a {servicio}, "
+                f"se observa que parte del universo filtrado cumple con tres o más criterios de evaluación "
+                f"definidos para el proceso de renovación vehicular. En consecuencia, se estima que el reemplazo "
+                f"debe ser evaluado caso a caso, considerando los antecedentes técnicos, operativos, "
+                f"presupuestarios y de seguridad disponibles, a fin de determinar la pertinencia de su reposición."
+            )
+
         else:
-            for item in obs.value_counts().head(10).items():
-                lineas.append(f"- {item[0]}: {item[1]} registro(s)")
+
+            lineas.append(
+                f"En atención al presente informe técnico, mediante el cual se analiza "
+                f"la solicitud de reemplazo de vehículo(s) perteneciente(s) a {servicio}, "
+                f"se observa que los vehículos filtrados no cumplen mayoritariamente con los criterios "
+                f"definidos para el proceso de renovación vehicular. Por lo anterior, se recomienda "
+                f"evaluar su reemplazo solo en aquellos casos que cuenten con antecedentes técnicos, "
+                f"operativos, presupuestarios o de seguridad que justifiquen su reposición."
+            )
+
     else:
-        lineas.append("- La base no contiene columna de observaciones de calidad de datos.")
+
+        lineas.append(
+            "No se dispone de información suficiente para emitir una conclusión respecto del cumplimiento "
+            "de criterios de evaluación."
+        )
 
     return "\n".join(lineas)
 
 
-st.title("🚗 Catastro de Vehículos 2027")
+    
+
+st.title("🚗 Catastro de Vehículos 2027 - PRUEBA PAULINA")
 st.caption("Aplicación para análisis, filtros, gráficos y generación de minuta del catastro de vehículos.")
 
 with st.sidebar:
