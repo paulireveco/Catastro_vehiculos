@@ -1,4 +1,4 @@
-import io
+  import io
 from datetime import datetime
 import textwrap
 import pandas as pd
@@ -101,6 +101,48 @@ def leer_excel(archivo):
     data.columns = [str(c).strip() for c in data.columns]
     return data, hoja
 
+@st.cache_data(show_spinner=False)
+def leer_dotacion_maxima(archivo):
+    nombre_hoja = "Dotación_máxima"
+
+    dotacion = pd.read_excel(
+        archivo,
+        sheet_name=nombre_hoja,
+        engine="openpyxl"
+    )
+
+    dotacion.columns = [
+        str(columna).strip()
+        for columna in dotacion.columns
+    ]
+
+    # Eliminar filas completamente vacías
+    dotacion = dotacion.dropna(how="all")
+
+    # Normalizar texto del Servicio
+    dotacion["Servicio"] = (
+        dotacion["Servicio"]
+        .astype(str)
+        .str.strip()
+    )
+
+    # Convertir dotación a valor numérico
+    dotacion["Dotacion máxima autorizada"] = pd.to_numeric(
+        dotacion["Dotacion máxima autorizada"],
+        errors="coerce"
+    )
+
+    # Excluir filas de totales
+    dotacion = dotacion[
+        ~dotacion["Servicio"].str.lower().str.startswith("total")
+    ]
+
+    # Excluir filas sin dotación válida
+    dotacion = dotacion.dropna(
+        subset=["Dotacion máxima autorizada"]
+    )
+
+    return dotacion
 
 def preparar_datos(df):
     df = df.copy()
@@ -279,8 +321,13 @@ def dataframe_a_excel(df):
     return salida
 
 
-def generar_minuta(df, filtros_aplicados):
+def generar_minuta(
+    df,
+    filtros_aplicados,
+    resumen_dotacion=None
+):   
     total = len(df)
+    servicios = df["Servicio"].nunique()
 
     # ---------------------------------------------------------
     # Funciones auxiliares utilizadas solamente en la minuta
@@ -815,8 +862,110 @@ def generar_minuta(df, filtros_aplicados):
         "presupuestarios y de seguridad disponibles."
     )
 
+        # ----------------------------------------------------------
+    # Información de dotación máxima
+    # ----------------------------------------------------------
     lineas.append("")
-    lineas.append("6. RECOMENDACIONES")
+    lineas.append("6. DOTACIÓN MÁXIMA VEHICULAR")
+    lineas.append("")
+
+    if (
+        resumen_dotacion is not None
+        and not resumen_dotacion.empty
+    ):
+        dotacion_actual = resumen_dotacion[
+            "Vehículos actuales"
+        ].sum()
+
+        dotacion_autorizada = resumen_dotacion[
+            "Dotacion máxima autorizada"
+        ].sum()
+
+        cupos_disponibles = (
+            dotacion_autorizada
+            - dotacion_actual
+        )
+
+        ocupacion_dotacion = (
+            dotacion_actual / dotacion_autorizada * 100
+            if dotacion_autorizada > 0
+            else 0
+        )
+
+        lineas.append(
+            f"- Vehículos actuales: "
+            f"{dotacion_actual:,.0f}".replace(",", ".")
+        )
+
+        lineas.append(
+            f"- Dotación máxima autorizada: "
+            f"{dotacion_autorizada:,.0f}".replace(",", ".")
+        )
+
+        lineas.append(
+            f"- Cupos disponibles: "
+            f"{cupos_disponibles:,.0f}".replace(",", ".")
+        )
+
+        lineas.append(
+            f"- Porcentaje de ocupación: "
+            f"{ocupacion_dotacion:.1f}%"
+        )
+
+        lineas.append("")
+        lineas.append("Detalle por Servicio:")
+
+        for _, fila_dotacion in resumen_dotacion.iterrows():
+            servicio_dotacion = fila_dotacion.get(
+                "Servicio",
+                "No identificado"
+            )
+
+            actuales = fila_dotacion.get(
+                "Vehículos actuales",
+                0
+            )
+
+            autorizada = fila_dotacion.get(
+                "Dotacion máxima autorizada",
+                0
+            )
+
+            cupos = fila_dotacion.get(
+                "Cupos disponibles",
+                autorizada - actuales
+            )
+
+            ocupacion = fila_dotacion.get(
+                "Porcentaje de ocupación",
+                0
+            )
+
+            situacion = fila_dotacion.get(
+                "Situación",
+                "No indica"
+            )
+
+            if pd.isna(ocupacion):
+                ocupacion = 0
+
+            lineas.append(
+                f"- {servicio_dotacion}: "
+                f"{actuales:.0f} vehículos actuales; "
+                f"dotación máxima autorizada {autorizada:.0f}; "
+                f"{cupos:.0f} cupos disponibles; "
+                f"ocupación {ocupacion:.1f}%; "
+                f"situación: {situacion}."
+            )
+
+    else:
+        lineas.append(
+            "- No existe información de dotación máxima "
+            "para los servicios seleccionados."
+        )
+
+    lineas.append("")
+    lineas.append("7. RECOMENDACIONES")
     lineas.append("")
     lineas.append(
         "1. Priorizar los vehículos que cumplen los cuatro criterios."
@@ -842,7 +991,7 @@ def generar_minuta(df, filtros_aplicados):
     # =========================================================
 
     lineas.append("")
-    lineas.append("7. VEHÍCULOS PRIORITARIOS")
+    lineas.append("8. VEHÍCULOS PRIORITARIOS")
     lineas.append("")
 
     if "Cantidad criterios cumplidos" in df.columns:
@@ -1054,8 +1203,24 @@ with st.sidebar:
     archivo_subido = st.file_uploader("Cargar archivo Excel", type=["xlsx"])
 
 try:
-    archivo = archivo_subido if archivo_subido is not None else ARCHIVO_DEFAULT
+    archivo = (
+        archivo_subido
+        if archivo_subido is not None
+        else ARCHIVO_DEFAULT
+    )
+
     df_original, hoja_usada = leer_excel(archivo)
+    df_dotacion = leer_dotacion_maxima(archivo)
+
+except Exception as e:
+    st.error(
+        "No fue posible cargar el archivo Excel o la hoja "
+        "'Dotación_máxima'. Revise los nombres de las hojas "
+        "y columnas."
+    )
+    st.exception(e)
+    st.stop()
+
 except Exception as e:
     st.error("No fue posible cargar el archivo Excel. Verifique que el archivo esté en la misma carpeta de app.py o cárguelo desde la barra lateral.")
     st.exception(e)
@@ -1064,6 +1229,58 @@ except Exception as e:
 st.info(f"Hoja utilizada: {hoja_usada} | Registros cargados: {len(df_original):,}".replace(",", "."))
 
 df = preparar_datos(df_original)
+
+# Calcular cantidad actual de vehículos por Servicio
+vehiculos_actuales = (
+    df.groupby("Servicio")
+    .size()
+    .reset_index(name="Vehículos actuales")
+)
+
+# Relacionar el catastro con la dotación máxima
+resumen_dotacion = df_dotacion.merge(
+    vehiculos_actuales,
+    on="Servicio",
+    how="left"
+)
+
+resumen_dotacion["Vehículos actuales"] = (
+    resumen_dotacion["Vehículos actuales"]
+    .fillna(0)
+    .astype(int)
+)
+
+resumen_dotacion["Dotacion máxima autorizada"] = (
+    resumen_dotacion["Dotacion máxima autorizada"]
+    .astype(int)
+)
+
+# Calcular cupos disponibles
+resumen_dotacion["Cupos disponibles"] = (
+    resumen_dotacion["Dotacion máxima autorizada"]
+    - resumen_dotacion["Vehículos actuales"]
+)
+
+# Calcular porcentaje de ocupación
+resumen_dotacion["Porcentaje de ocupación"] = (
+    resumen_dotacion["Vehículos actuales"]
+    / resumen_dotacion["Dotacion máxima autorizada"]
+    * 100
+).round(1)
+
+# Clasificar situación de cada Servicio
+resumen_dotacion["Situación"] = resumen_dotacion[
+    "Cupos disponibles"
+].apply(
+    lambda valor: (
+        "Sobre dotación"
+        if valor < 0
+        else "Dotación completa"
+        if valor == 0
+        else "Con cupos disponibles"
+    )
+)
+
 
 st.sidebar.header("Filtros")
 df_filtrado = df.copy()
@@ -1086,6 +1303,140 @@ for columna, etiqueta in [
     df_filtrado = aplicar_multiselect(df_filtrado, columna, etiqueta)
     if len(df_filtrado) != antes:
         filtros_aplicados.append(f"{etiqueta}: filtro aplicado")
+
+# ==========================================================
+# DOTACIÓN MÁXIMA DINÁMICA SEGÚN LOS FILTROS
+# ==========================================================
+
+st.subheader("Dotación máxima por Servicio")
+
+# Contar los vehículos que permanecen después de aplicar filtros
+vehiculos_actuales_filtrados = (
+    df_filtrado.groupby("Servicio")
+    .size()
+    .reset_index(name="Vehículos actuales")
+)
+
+# Obtener los servicios presentes en el resultado filtrado
+servicios_filtrados = (
+    df_filtrado["Servicio"]
+    .dropna()
+    .astype(str)
+    .str.strip()
+    .unique()
+)
+
+# Considerar solamente la dotación de los servicios filtrados
+dotacion_filtrada = df_dotacion[
+    df_dotacion["Servicio"].isin(servicios_filtrados)
+].copy()
+
+# Relacionar dotación máxima con vehículos filtrados
+resumen_dotacion_filtrado = dotacion_filtrada.merge(
+    vehiculos_actuales_filtrados,
+    on="Servicio",
+    how="left"
+)
+
+# Completar servicios que no tengan vehículos en el resultado
+resumen_dotacion_filtrado["Vehículos actuales"] = (
+    resumen_dotacion_filtrado["Vehículos actuales"]
+    .fillna(0)
+    .astype(int)
+)
+
+resumen_dotacion_filtrado["Dotacion máxima autorizada"] = (
+    pd.to_numeric(
+        resumen_dotacion_filtrado[
+            "Dotacion máxima autorizada"
+        ],
+        errors="coerce"
+    )
+    .fillna(0)
+    .astype(int)
+)
+
+# Calcular cupos disponibles
+resumen_dotacion_filtrado["Cupos disponibles"] = (
+    resumen_dotacion_filtrado[
+        "Dotacion máxima autorizada"
+    ]
+    - resumen_dotacion_filtrado[
+        "Vehículos actuales"
+    ]
+)
+
+# Calcular porcentaje de ocupación por servicio
+resumen_dotacion_filtrado["Porcentaje de ocupación"] = (
+    resumen_dotacion_filtrado[
+        "Vehículos actuales"
+    ]
+    .div(
+        resumen_dotacion_filtrado[
+            "Dotacion máxima autorizada"
+        ].replace(0, pd.NA)
+    )
+    .mul(100)
+    .round(1)
+)
+
+# Clasificar situación de la dotación
+resumen_dotacion_filtrado["Situación"] = (
+    resumen_dotacion_filtrado[
+        "Cupos disponibles"
+    ].apply(
+        lambda valor: (
+            "Sobre dotación"
+            if valor < 0
+            else "Dotación completa"
+            if valor == 0
+            else "Con cupos disponibles"
+        )
+    )
+)
+
+# Calcular indicadores generales
+total_actual = resumen_dotacion_filtrado[
+    "Vehículos actuales"
+].sum()
+
+total_autorizado = resumen_dotacion_filtrado[
+    "Dotacion máxima autorizada"
+].sum()
+
+total_cupos = (
+    total_autorizado
+    - total_actual
+)
+
+porcentaje_ocupacion = (
+    total_actual / total_autorizado * 100
+    if total_autorizado > 0
+    else 0
+)
+
+# Mostrar indicadores
+dot1, dot2, dot3, dot4 = st.columns(4)
+
+dot1.metric(
+    "Vehículos actuales",
+    f"{total_actual:,.0f}".replace(",", ".")
+)
+
+dot2.metric(
+    "Dotación máxima autorizada",
+    f"{total_autorizado:,.0f}".replace(",", ".")
+)
+
+dot3.metric(
+    "Cupos disponibles",
+    f"{total_cupos:,.0f}".replace(",", ".")
+)
+
+dot4.metric(
+    "Ocupación",
+    f"{porcentaje_ocupacion:.1f}%"
+)
 
 st.subheader("Indicadores principales")
 col1, col2, col3, col4, col5 = st.columns(5)
@@ -1217,7 +1568,11 @@ with col_a:
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
 
-minuta = generar_minuta(df_filtrado, filtros_aplicados)
+minuta = generar_minuta(
+    df_filtrado,
+    filtros_aplicados,
+    resumen_dotacion_filtrado
+)
 
 with col_b:
     st.download_button(
