@@ -92,57 +92,6 @@ def formato_pesos(valor):
     return "$" + f"{numero:,.0f}".replace(",", ".")
 
 
-@st.cache_data(show_spinner=False)
-def leer_excel(archivo):
-    """Lee la hoja Catastro_final. Si no existe, usa la primera hoja disponible."""
-    xls = pd.ExcelFile(archivo, engine="openpyxl")
-    hoja = HOJA_DEFAULT if HOJA_DEFAULT in xls.sheet_names else xls.sheet_names[0]
-    data = pd.read_excel(archivo, sheet_name=hoja, engine="openpyxl")
-    data.columns = [str(c).strip() for c in data.columns]
-    return data, hoja
-
-@st.cache_data(show_spinner=False)
-def leer_dotacion_maxima(archivo):
-    nombre_hoja = "Dotación_máxima"
-
-    dotacion = pd.read_excel(
-        archivo,
-        sheet_name=nombre_hoja,
-        engine="openpyxl"
-    )
-
-    dotacion.columns = [
-        str(columna).strip()
-        for columna in dotacion.columns
-    ]
-
-    # Eliminar filas completamente vacías
-    dotacion = dotacion.dropna(how="all")
-
-    # Normalizar texto del Servicio
-    dotacion["Servicio"] = (
-        dotacion["Servicio"]
-        .astype(str)
-        .str.strip()
-    )
-
-    # Convertir dotación a valor numérico
-    dotacion["Dotacion máxima autorizada"] = pd.to_numeric(
-        dotacion["Dotacion máxima autorizada"],
-        errors="coerce"
-    )
-
-    # Excluir filas de totales
-    dotacion = dotacion[
-        ~dotacion["Servicio"].str.lower().str.startswith("total")
-    ]
-
-    # Excluir filas sin dotación válida
-    dotacion = dotacion.dropna(
-        subset=["Dotacion máxima autorizada"]
-    )
-
-    return dotacion
 
 def preparar_datos(df):
     df = df.copy()
@@ -1194,6 +1143,136 @@ def minuta_a_pdf_bytes(texto):
     buffer.seek(0)
     return buffer
 
+@st.cache_data(show_spinner=False)
+def leer_excel(archivo):
+    """
+    Lee la hoja Catastro_final.
+    Si no existe, utiliza la primera hoja disponible.
+    """
+
+    xls = pd.ExcelFile(
+        archivo,
+        engine="openpyxl"
+    )
+
+    hoja = (
+        HOJA_DEFAULT
+        if HOJA_DEFAULT in xls.sheet_names
+        else xls.sheet_names[0]
+    )
+
+    data = pd.read_excel(
+        archivo,
+        sheet_name=hoja,
+        engine="openpyxl"
+    )
+
+    data.columns = [
+        str(columna).strip()
+        for columna in data.columns
+    ]
+
+    return data, hoja
+
+
+@st.cache_data(show_spinner=False)
+def leer_dotacion_maxima(archivo):
+    """
+    Lee y prepara la hoja Dotación_máxima.
+    """
+
+    dotacion = pd.read_excel(
+        archivo,
+        sheet_name="Dotación_máxima",
+        engine="openpyxl"
+    )
+
+    dotacion.columns = [
+        str(columna).strip()
+        for columna in dotacion.columns
+    ]
+
+    dotacion = dotacion.dropna(
+        how="all"
+    ).copy()
+
+    if "Servicio" in dotacion.columns:
+        dotacion["Servicio"] = (
+            dotacion["Servicio"]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+        )
+
+    if "Dotacion máxima autorizada" in dotacion.columns:
+        dotacion["Dotacion máxima autorizada"] = (
+            pd.to_numeric(
+                dotacion["Dotacion máxima autorizada"],
+                errors="coerce"
+            )
+        )
+
+    if "Servicio" in dotacion.columns:
+        dotacion = dotacion[
+            ~dotacion["Servicio"]
+            .str.lower()
+            .str.startswith("total")
+        ].copy()
+
+    if "Dotacion máxima autorizada" in dotacion.columns:
+        dotacion = dotacion.dropna(
+            subset=["Dotacion máxima autorizada"]
+        )
+
+    return dotacion
+
+@st.cache_data(show_spinner=False)
+def leer_excel(archivo):
+
+    xls = pd.ExcelFile(
+        archivo,
+        engine="openpyxl"
+    )
+
+    hoja = (
+        HOJA_DEFAULT
+        if HOJA_DEFAULT in xls.sheet_names
+        else xls.sheet_names[0]
+    )
+
+    data = pd.read_excel(
+        archivo,
+        sheet_name=hoja,
+        engine="openpyxl"
+    )
+
+    data.columns = [
+        str(columna).strip()
+        for columna in data.columns
+    ]
+
+    return data, hoja
+
+
+@st.cache_data(show_spinner=False)
+def leer_dotacion_maxima(archivo):
+
+    dotacion = pd.read_excel(
+        archivo,
+        sheet_name="Dotación_máxima",
+        engine="openpyxl"
+    )
+
+    dotacion.columns = [
+        str(columna).strip()
+        for columna in dotacion.columns
+    ]
+
+    dotacion = dotacion.dropna(
+        how="all"
+    )
+
+    return dotacion
 
 st.title("🚗 Catastro de Vehículos")
 st.caption("Aplicación para análisis, filtros, gráficos y generación de minuta del catastro de vehículos.")
@@ -1211,6 +1290,14 @@ try:
 
     df_original, hoja_usada = leer_excel(archivo)
     df_dotacion = leer_dotacion_maxima(archivo)
+
+except Exception as e:
+    st.error(
+        "No fue posible cargar el archivo Excel."
+    )
+    st.exception(e)
+    st.stop()
+
 
 except Exception as e:
     st.error(
@@ -1449,6 +1536,335 @@ col4.metric("4 criterios", f"{cuatro:,}".replace(",", "."))
 gasto_total = df_filtrado.get("Gasto en mantención acumulada num", pd.Series(dtype=float)).sum(skipna=True)
 col5.metric("Gasto mantención", formato_pesos(gasto_total))
 
+
+# ==========================================================
+# PROYECCIÓN DE COMPRAS PARA EL AÑO 2027
+# ==========================================================
+
+# ----------------------------------------------------------
+# Cantidad inicial de vehículos propuestos
+# ----------------------------------------------------------
+cantidad_propuesta = 20
+# Trabajar con los datos que permanecen después
+# de aplicar los filtros del panel
+df_proyeccion = df_filtrado.copy()
+
+
+# ----------------------------------------------------------
+# 1. EXCLUIR VEHÍCULOS ASOCIADOS A COMPRAS PGC
+# ----------------------------------------------------------
+
+if "Año de Compra" in df_proyeccion.columns:
+
+    anio_compra_normalizado = (
+        df_proyeccion["Año de Compra"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+        .str.upper()
+    )
+
+    df_proyeccion = df_proyeccion[
+        ~anio_compra_normalizado.str.contains(
+            "PGC",
+            na=False
+        )
+    ].copy()
+
+
+# ----------------------------------------------------------
+# 2. EXCLUIR CUPOS Y REGISTROS SIN PATENTE REAL
+# ----------------------------------------------------------
+
+if "I.R.N.V.M." in df_proyeccion.columns:
+
+    patente_proyeccion = (
+        df_proyeccion["I.R.N.V.M."]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+        .str.upper()
+    )
+
+    valores_no_validos = [
+        "",
+        "CUPO",
+        "CUPO DISPONIBLE",
+        "CUPO_DISPONIBLE",
+        "NO INDICA",
+        "NAN"
+    ]
+
+    df_proyeccion = df_proyeccion[
+        ~patente_proyeccion.isin(
+            valores_no_validos
+        )
+    ].copy()
+
+
+# ----------------------------------------------------------
+# 3. FUNCIÓN PARA INTERPRETAR LOS CRITERIOS
+# ----------------------------------------------------------
+
+def valor_cumple(valor):
+    texto = str(valor).strip().lower()
+
+    return texto in [
+        "cumple",
+        "si cumple",
+        "sí cumple"
+    ]
+
+
+# ----------------------------------------------------------
+# 4. CONVERTIR LOS CUATRO CRITERIOS EN PUNTAJES
+# ----------------------------------------------------------
+
+df_proyeccion["Puntaje antigüedad"] = (
+    df_proyeccion[
+        "Criterio antigüedad >= 8 años"
+    ]
+    .apply(valor_cumple)
+    .astype(int)
+)
+
+df_proyeccion["Puntaje priorización"] = (
+    df_proyeccion[
+        "Criterio priorización alta"
+    ]
+    .apply(valor_cumple)
+    .astype(int)
+)
+
+df_proyeccion["Puntaje gasto"] = (
+    df_proyeccion[
+        "Criterio gasto mantención > $5.000.000"
+    ]
+    .apply(valor_cumple)
+    .astype(int)
+)
+
+df_proyeccion["Puntaje kilometraje"] = (
+    df_proyeccion[
+        "Criterio kilometraje > 100.000"
+    ]
+    .apply(valor_cumple)
+    .astype(int)
+)
+
+
+# ----------------------------------------------------------
+# 5. CALCULAR PUNTAJE TOTAL
+# ----------------------------------------------------------
+
+df_proyeccion["Puntaje total renovación"] = (
+    df_proyeccion["Puntaje antigüedad"]
+    + df_proyeccion["Puntaje priorización"]
+    + df_proyeccion["Puntaje gasto"]
+    + df_proyeccion["Puntaje kilometraje"]
+)
+
+
+# ----------------------------------------------------------
+# 6. CREAR CAMPOS NUMÉRICOS PARA EL ORDENAMIENTO
+# ----------------------------------------------------------
+
+df_proyeccion["Año Vehículo orden"] = pd.to_numeric(
+    df_proyeccion["Año Vehículo"],
+    errors="coerce"
+)
+
+df_proyeccion["Gasto mantención orden"] = pd.to_numeric(
+    df_proyeccion[
+        "Gasto en mantención acumulada"
+    ],
+    errors="coerce"
+).fillna(0)
+
+df_proyeccion["Kilometraje orden"] = pd.to_numeric(
+    df_proyeccion["Kilometraje acumulado"],
+    errors="coerce"
+).fillna(0)
+
+
+# ----------------------------------------------------------
+# 7. CONSIDERAR VEHÍCULOS QUE CUMPLAN AL MENOS UN CRITERIO
+# ----------------------------------------------------------
+
+df_proyeccion = df_proyeccion[
+    df_proyeccion[
+        "Puntaje total renovación"
+    ] >= 1
+].copy()
+
+
+# ----------------------------------------------------------
+# 8. ORDEN DEFINITIVO DE PRIORIZACIÓN
+#
+# Primero:
+# - Mayor cantidad de criterios cumplidos.
+#
+# En caso de igualdad:
+# - Priorización alta.
+# - Mayor gasto de mantención.
+# - Mayor antigüedad.
+# - Mayor kilometraje.
+# ----------------------------------------------------------
+
+df_proyeccion = df_proyeccion.sort_values(
+    by=[
+        "Puntaje total renovación",
+        "Puntaje priorización",
+        "Gasto mantención orden",
+        "Año Vehículo orden",
+        "Kilometraje orden"
+    ],
+    ascending=[
+        False,  # Primero quienes cumplen 4 criterios
+        False,  # Primero priorización alta
+        False,  # Primero mayor gasto de mantención
+        True,   # Primero el año más antiguo
+        False   # Primero mayor kilometraje
+    ],
+    na_position="last"
+)
+
+
+# ----------------------------------------------------------
+# 9. SELECCIONAR LOS PRIMEROS 20 VEHÍCULOS
+# ----------------------------------------------------------
+
+propuesta_renovacion_2027 = (
+    df_proyeccion
+    .head(int(cantidad_propuesta))
+    .copy()
+)
+
+propuesta_renovacion_2027.insert(
+    0,
+    "Orden de propuesta",
+    range(
+        1,
+        len(propuesta_renovacion_2027) + 1
+    )
+)
+
+
+# ----------------------------------------------------------
+# 10. CLASIFICAR EL NIVEL DE RECOMENDACIÓN
+# ----------------------------------------------------------
+
+propuesta_renovacion_2027[
+    "Nivel de recomendación"
+] = propuesta_renovacion_2027[
+    "Puntaje total renovación"
+].apply(
+    lambda puntaje: (
+        "Prioridad muy alta"
+        if puntaje == 4
+        else "Prioridad alta"
+        if puntaje == 3
+        else "Prioridad media"
+        if puntaje == 2
+        else "Prioridad referencial"
+    )
+)
+
+
+# ----------------------------------------------------------
+# 11. GENERAR FUNDAMENTO AUTOMÁTICO
+# ----------------------------------------------------------
+
+def generar_fundamento_proyeccion(fila):
+    fundamentos = []
+
+    if fila.get("Puntaje antigüedad", 0) == 1:
+        fundamentos.append(
+            "antigüedad igual o superior a 8 años"
+        )
+
+    if fila.get("Puntaje priorización", 0) == 1:
+        fundamentos.append(
+            "priorización alta"
+        )
+
+    if fila.get("Puntaje gasto", 0) == 1:
+        fundamentos.append(
+            "gasto de mantención superior a $5.000.000"
+        )
+
+    if fila.get("Puntaje kilometraje", 0) == 1:
+        fundamentos.append(
+            "kilometraje superior a 100.000 km"
+        )
+
+    if fundamentos:
+        return "; ".join(fundamentos).capitalize()
+
+    return "Sin fundamento automático"
+
+
+propuesta_renovacion_2027[
+    "Fundamento de la propuesta"
+] = propuesta_renovacion_2027.apply(
+    generar_fundamento_proyeccion,
+    axis=1
+)
+
+
+# ----------------------------------------------------------
+# 12. DEFINIR LAS COLUMNAS VISIBLES
+# ----------------------------------------------------------
+
+columnas_proyeccion = [
+    "Orden de propuesta",
+    "Servicio",
+    "Año de Compra",
+    "I.R.N.V.M.",
+    "Tipo vehículo",
+    "Año Vehículo",
+    "Kilometraje acumulado",
+    "Gasto en mantención acumulada",
+    "Estado",
+    "Priorización",
+    "Puntaje total renovación",
+    "Nivel de recomendación",
+    "Fundamento de la propuesta"
+]
+
+# Mantener solamente las columnas que existan
+columnas_proyeccion = [
+    columna
+    for columna in columnas_proyeccion
+    if columna in propuesta_renovacion_2027.columns
+]
+
+
+
+# ----------------------------------------------------------
+# 16. GENERAR DESCARGA EN EXCEL
+# ----------------------------------------------------------
+
+if not propuesta_renovacion_2027.empty:
+
+    buffer_proyeccion = io.BytesIO()
+
+    with pd.ExcelWriter(
+        buffer_proyeccion,
+        engine="openpyxl"
+    ) as writer:
+
+        propuesta_renovacion_2027[
+            columnas_proyeccion
+        ].to_excel(
+            writer,
+            sheet_name="Propuesta_2027",
+            index=False
+        )
+
+    buffer_proyeccion.seek(0)
+
+
 st.subheader("Gráficos")
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "Vehículos por Servicio",
@@ -1582,6 +1998,24 @@ with col_b:
         mime="text/plain",
     )
 
+with col_c:
+    if not propuesta_renovacion_2027.empty:
+        st.download_button(
+            label="Descargar proyección de compras 2027",
+            data=buffer_proyeccion,
+            file_name="proyeccion_compras_vehiculos_2027.xlsx",
+            mime=(
+                "application/vnd.openxmlformats-officedocument."
+                "spreadsheetml.sheet"
+            ),
+            key="descarga_proyeccion_2027"
+        )
+    else:
+        st.info(
+            "No existen vehículos elegibles para "
+            "generar la proyección 2027."
+        )
+        
 with col_c:
     try:
         pdf_buffer = minuta_a_pdf_bytes(minuta)
