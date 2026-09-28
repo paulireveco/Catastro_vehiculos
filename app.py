@@ -1275,7 +1275,6 @@ def leer_dotacion_maxima(archivo):
     return dotacion
 
 st.title("🚗 Catastro de Vehículos")
-st.caption("Aplicación para análisis, filtros, gráficos y generación de minuta del catastro de vehículos.")
 
 with st.sidebar:
     st.header("Carga de datos")
@@ -1313,7 +1312,6 @@ except Exception as e:
     st.exception(e)
     st.stop()
 
-st.info(f"Hoja utilizada: {hoja_usada} | Registros cargados: {len(df_original):,}".replace(",", "."))
 
 df = preparar_datos(df_original)
 
